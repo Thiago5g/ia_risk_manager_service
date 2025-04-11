@@ -1,7 +1,5 @@
 from fastapi import FastAPI, UploadFile, File, Form
 from inference import process_and_store_image, compare_image
-import uvicorn
-import os
 
 app = FastAPI()
 
