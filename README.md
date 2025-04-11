@@ -3,8 +3,8 @@
 ## Como rodar com Docker
 
 ```bash
-docker build -t ia-trade-service .
-docker run -p 8001:8001 ia-trade-service
+docker build -t ia-risk-manager-service .
+docker run -p 8001:8001 ia-risk-manager-service
 ```
 
 ## Como rodar com VS Code
