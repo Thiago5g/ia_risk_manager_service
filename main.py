@@ -1,5 +1,7 @@
 from fastapi import FastAPI, UploadFile, File, Form
 from inference import process_and_store_image, compare_image
+import uvicorn
+import os
 
 app = FastAPI()
 
@@ -14,3 +16,7 @@ async def analyze(file: UploadFile = File(...)):
     contents = await file.read()
     result = compare_image(contents)
     return result
+
+if __name__ == "__main__":
+    port = int(os.getenv("PORT", 8001))  # Render injeta essa variável dinamicamente
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
