@@ -1,43 +1,48 @@
 # ia_risk_manager_service
 
+Trade chart pattern recognition microservice using CLIP embeddings and cosine similarity.
+
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
-![OpenAI](https://img.shields.io/badge/OpenAI-412991?logo=openai&logoColor=white)
+![CLIP](https://img.shields.io/badge/CLIP-Vision-412991?logo=openai&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)
-![License](https://img.shields.io/badge/License-MIT-green)
-
-AI-powered trade chart analysis microservice using vision models and pattern memory.
-
-## Architecture
-
-```
-┌────────────┐     ┌──────────────────┐     ┌──────────────────┐     ┌──────────────┐     ┌──────────┐
-│ Chart Image│────▶│ CLIP Embeddings  │────▶│ Pattern Matching │────▶│ GPT Analysis │────▶│ Response │
-└────────────┘     └──────────────────┘     └──────────────────┘     └──────────────┘     └──────────┘
-                                                     ▲
-                                                     │
-                                              ┌──────────────┐
-                                              │ memory.json  │
-                                              └──────────────┘
-```
 
 ## How It Works
 
-1. **Teach** — Upload a trade chart image with an explanation. CLIP generates an embedding, which is stored alongside your annotation in `memory.json`.
-2. **Store** — Learned patterns persist in a lightweight JSON file (no database required).
-3. **Analyze** — Upload a new chart image. The service computes its CLIP embedding, finds the closest learned patterns, and sends context to GPT for a detailed analysis and recommendation.
+This is a **retrieval-based** pattern recognition system, not a generative AI:
+
+```
+┌────────────┐     ┌──────────────────┐     ┌────────────────┐
+│ Chart Image│────▶│ CLIP Embeddings  │────▶│ Store/Compare  │
+└────────────┘     │ (512-dim vector) │     │ (memory.json)  │
+                   └──────────────────┘     └───────┬────────┘
+                                                    │
+                                            ┌───────▼────────┐
+                                            │ Cosine Similar. │
+                                            │ → Best Match    │
+                                            └───────┬────────┘
+                                                    │
+                                            ┌───────▼────────┐
+                                            │ Return stored   │
+                                            │ explanation     │
+                                            └────────────────┘
+```
+
+**Two phases:**
+
+1. **Teach** — Upload chart images with expert annotations. CLIP generates a 512-dimensional embedding for each image, stored alongside the annotation in `memory.json`.
+
+2. **Analyze** — Upload a new chart. CLIP embeds it, cosine similarity finds the closest stored pattern, and returns the expert's original annotation with a confidence score.
+
+> **Note:** This system does NOT use GPT or any language model for analysis. It's pure embedding similarity — matching visual patterns to pre-stored expert knowledge.
 
 ## Quick Start
 
 ### Docker (recommended)
 
 ```bash
-# Clone and configure
 git clone https://github.com/Thiago5g/ia_risk_manager_service.git
 cd ia_risk_manager_service
-cp .env.example .env  # Add your OPENAI_API_KEY
-
-# Run
 docker-compose up --build
 ```
 
@@ -48,69 +53,101 @@ python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
-export OPENAI_API_KEY=your_key_here
 uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
 The API will be available at `http://localhost:8000`.
+OpenAPI docs at `http://localhost:8000/docs`.
 
 ## API Reference
+
+### GET /health
+
+Returns service status and pattern count.
+
+```bash
+curl http://localhost:8000/health
+# {"status": "ok", "patterns_count": 5}
+```
 
 ### POST /teach
 
 Upload a chart image and teach the system a new pattern.
 
-| Parameter     | Type   | Description                        |
-|---------------|--------|------------------------------------|
-| `image`       | file   | Trade chart image (PNG/JPG)        |
-| `explanation` | string | Description of the pattern/setup   |
+| Parameter     | Type   | Description                           |
+|---------------|--------|---------------------------------------|
+| `file`        | file   | Trade chart image (PNG/JPEG/WebP)     |
+| `explanation` | string | Expert annotation of the pattern      |
 
 ```bash
 curl -X POST http://localhost:8000/teach \
-  -F "image=@chart.png" \
-  -F "explanation=Bullish engulfing at support level"
+  -F "file=@chart.png" \
+  -F "explanation=Bullish engulfing at key support level"
+# {"message": "Pattern stored successfully", "patterns_stored": 6}
 ```
 
 ### POST /analyze
 
-Upload a chart image for analysis against learned patterns.
+Upload a chart image for analysis against stored patterns.
 
-| Parameter | Type | Description                 |
-|-----------|------|-----------------------------|
-| `image`   | file | Trade chart image (PNG/JPG) |
+| Parameter | Type | Description                    |
+|-----------|------|--------------------------------|
+| `file`    | file | Trade chart image (PNG/JPEG/WebP) |
 
 ```bash
 curl -X POST http://localhost:8000/analyze \
-  -F "image=@new_chart.png"
+  -F "file=@new_chart.png"
+# {"similarity": 0.87, "matched_explanation": "Bullish engulfing at key support level", "confidence": "high"}
 ```
 
-Returns a JSON response with pattern matches and GPT-generated analysis.
+**Confidence levels:**
+- `high`: similarity ≥ 0.85
+- `medium`: similarity ≥ 0.70
+- `low`: similarity < 0.70
 
 ## Tech Stack
 
-| Component       | Technology              |
-|-----------------|------------------------|
-| Runtime         | Python 3.10+           |
-| Framework       | FastAPI                |
-| Vision Model    | CLIP (OpenAI)          |
-| Language Model  | OpenAI GPT             |
-| Storage         | memory.json (file)     |
-| Containerization| Docker                 |
-| Deployment      | Fly.io                 |
+| Component | Technology |
+|-----------|-----------|
+| Framework | FastAPI |
+| Vision Model | CLIP (openai/clip-vit-base-patch32) via HuggingFace |
+| Embeddings | 512-dimensional vectors |
+| Similarity | Cosine similarity (numpy) |
+| Storage | JSON file (memory.json) |
+| Deployment | Docker, Fly.io |
+| Validation | Pydantic schemas |
 
-## Environment Variables
+## Configuration
 
-| Variable         | Required | Description           |
-|------------------|----------|-----------------------|
-| `OPENAI_API_KEY` | Yes      | OpenAI API key        |
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `MEMORY_PATH` | No | `./memory.json` | Path to pattern storage file |
 
-## Deployment
+**No external API keys required.** CLIP runs locally using HuggingFace transformers.
 
-Production deployment is configured via `fly.toml` for [Fly.io](https://fly.io):
+## Testing
 
 ```bash
-fly deploy
+pip install -r requirements-dev.txt
+pytest tests/ -v
 ```
+
+Tests mock the CLIP model — no model download required for running tests.
+
+## Limitations
+
+- **Storage:** Patterns stored in a JSON file (not suitable for large-scale production)
+- **No generation:** Returns stored explanations, does not generate new analysis
+- **No concurrency:** File-based storage has no locking mechanism
+- **Single model:** Uses CLIP ViT-B/32 only, no model selection
+
+## Future Improvements
+
+- [ ] Add GPT analysis on top of pattern retrieval (generate insights, not just match)
+- [ ] Replace JSON storage with vector database (pgvector, Qdrant)
+- [ ] Add support for multiple CLIP model variants
+- [ ] Implement pattern versioning and deletion
+- [ ] Add batch analysis endpoint
 
 ## License
 
